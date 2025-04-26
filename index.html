@@ -1,0 +1,180 @@
+﻿<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quiz Brotato</title>
+  <!-- Konfetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+  <style>
+    /* Reset i podstawowe style */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary-color: #ffb74d;
+      --accent-correct: #c8e6c9;
+      --accent-wrong: #ffcdd2;
+      --transition-speed: 0.5s;
+    }
+    body {
+      font-family: sans-serif;
+      background-image: url('images/brotato-background.jpeg');
+      background-size: cover;
+      background-position: center 50%;
+      background-attachment: fixed;
+      color: #000;
+      text-align: center;
+      margin: 0; padding: 0; overflow-x: hidden;
+    }
+    /* Dekoracyjne elementy */
+    .decor-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; z-index: 0; }
+    .decor { position: absolute; bottom: -20px; width: 10px; height: 10px; background-color: rgba(210,105,30,0.7); border-radius: 50%; opacity: 0; animation: floatUp linear infinite; }
+    @keyframes floatUp { 0% { transform: translateY(0) rotate(0deg); opacity: 0; } 10% { opacity: 0.6; } 100% { transform: translateY(-110vh) rotate(360deg); opacity: 0; } }
+    /* Mikroanimacja bounce */
+    @keyframes bounce { 0% { transform: scale(1); } 30% { transform: scale(1.2); } 60% { transform: scale(0.9); } 100% { transform: scale(1); } }
+    .bounce { animation: bounce 0.3s ease; }
+    #app { position: relative; background: rgba(255,255,255,0.9); padding: 2rem; border-radius: 10px; width: 90%; max-width: 500px; margin: 2rem auto; opacity: 1; transition: opacity var(--transition-speed) ease; z-index: 1; }
+    #app.hidden { opacity: 0; }
+    .progress-bar-container { width: 100%; background: #ddd; border-radius: 5px; overflow: hidden; height: 20px; margin-bottom: 2rem; }
+    .progress-bar-filled { width: 0; height: 100%; background: var(--primary-color); transition: width var(--transition-speed) ease; }
+    .question-container { margin-bottom: 2rem; }
+    .question-container p { font-size: 2rem; margin-bottom: 1rem; }
+    button { display: block; width: 100%; padding: 0.75rem; margin: 0.5rem auto; background: linear-gradient(135deg, #fff, var(--primary-color)); border: 2px solid #000; border-radius: 5px; cursor: pointer; transition: transform 0.2s; font-size: 1rem; position: relative; }
+    button:hover { transform: scale(1.05); }
+    button.correct { background: var(--accent-correct); border-color: #388e3c; }
+    button.incorrect { background: var(--accent-wrong); border-color: #d32f2f; }
+    button .icon { margin-left: 0.5rem; font-weight: bold; }
+    .check-button { margin-top: 2rem; margin-bottom: 2rem; }
+    .retry-button { margin-top: 2rem; }
+  </style>
+</head>
+<body>
+  <div class="decor-container" id="decor-container"></div>
+  <div id="app"></div>
+
+  <script>
+    // Dekoracyjne okruchy
+    function createDecor() {
+      const container = document.getElementById('decor-container');
+      for (let i = 0; i < 40; i++) {
+        const decor = document.createElement('div'); decor.className = 'decor';
+        const size = Math.random() * 8 + 4;
+        decor.style.width = decor.style.height = size + 'px';
+        decor.style.left = Math.random() * 100 + 'vw';
+        decor.style.animationDuration = (Math.random() * 8 + 4) + 's';
+        container.appendChild(decor);
+      }
+    }
+    createDecor();
+
+    // Parallax scroll effect
+    window.addEventListener('scroll', () => {
+      const y = window.pageYOffset;
+      document.body.style.backgroundPositionY = `${50 + y * 0.1}%`;
+    });
+
+    // Dane quizu
+    const questions = [
+      { question: "Ile broni maksymalnie może mieć postać Multitasker?", options: ["8", "10", "12"], correctIndex: 2 },
+      { question: "Postać Sailor ma broń typu:", options: ["medyczne", "ciężkie", "pistolet"], correctIndex: 1 },
+      { question: "W późniejszych falach pojawia się boss lub:", options: ["mega przeciwnik", "apokalipsa", "chorda"], correctIndex: 2 },
+      { question: "Który przedmiot nie istnieje?", options: ["skrzydła", "buty baletnicy", "brzydki ząb"], correctIndex: 1 },
+      { question: "Jaka postać ma klątwę?", options: ["Sailor", "Ghost", "Speedy"], correctIndex: 0 },
+      { question: "Ile widzenia dają okulary?", options: ["10", "20", "30"], correctIndex: 1 },
+      { question: "Ile jest fal?", options: ["20", "10", "15"], correctIndex: 0 },
+      { question: "Która broń regeneruje zdrowie?", options: ["medyczny pistolet", "pistolet", "nóż"], correctIndex: 0 },
+      { question: "Co jest walutą  w Brotato?", options: ["coins", "materials", "gems"], correctIndex: 1 },
+      { question: "Jakie studio zrobiło grę Brotato?", options: ["Sony", "Mojang", "Bloobfish"], correctIndex: 2 }
+    ];
+    let countdown = 5; const userAnswers = []; let currentQuestionIndex = 0;
+
+    function fadeOut(callback) {
+      const app = document.getElementById('app');
+      app.classList.add('hidden');
+      setTimeout(() => { callback(); app.classList.remove('hidden'); }, 500);
+    }
+
+    function showWelcome() {
+      fadeOut(() => {
+        countdown = 5; currentQuestionIndex = 0; userAnswers.length = 0;
+        const app = document.getElementById('app');
+        app.innerHTML = '<h1>Cześć Graczu Brotato!</h1>';
+        setTimeout(startCountdown, 1000);
+      });
+    }
+
+    function startCountdown() {
+      renderCountdown();
+      const interval = setInterval(() => {
+        countdown--; renderCountdown();
+        if (countdown < 0) { clearInterval(interval); showQuiz(); }
+      }, 1000);
+    }
+
+    function renderCountdown() {
+      fadeOut(() => {
+        const app = document.getElementById('app');
+        app.innerHTML = `<h1>${countdown}</h1>` + (countdown===0? '<p>Zaczynamy!</p>' : '');
+        app.classList.remove('hidden');
+      });
+    }
+
+    function showQuiz() {
+      fadeOut(() => {
+        const app = document.getElementById('app');
+        app.innerHTML = `<div class="progress-bar-container"><div id="progress" class="progress-bar-filled"></div></div>`;
+        renderQuestion(0);
+      });
+    }
+
+    function updateProgress() {
+      document.getElementById('progress').style.width = (currentQuestionIndex / questions.length * 100) + '%';
+    }
+
+    function renderQuestion(index) {
+      currentQuestionIndex = index + 1;
+      const app = document.getElementById('app');
+      const container = document.createElement('div'); container.className = 'question-container';
+      const q = questions[index]; container.innerHTML = `<p>${q.question}</p>`;
+      q.options.forEach((opt, j) => {
+        const btn = document.createElement('button'); btn.textContent = opt;
+        btn.onclick = () => handleAnswer(index, j, btn);
+        container.appendChild(btn);
+      });
+      const prev = app.querySelector('.question-container'); prev?app.replaceChild(container, prev):app.appendChild(container);
+      updateProgress(); if (index === questions.length - 1) setTimeout(renderCheckButton, 500);
+    }
+
+    function handleAnswer(qIdx, optIdx, btn) {
+      if (userAnswers[qIdx] !== undefined) return;
+      const isCorrect = optIdx === questions[qIdx].correctIndex;
+      userAnswers[qIdx] = isCorrect;
+      btn.classList.add(isCorrect? 'correct':'incorrect');
+      // Mikroanimacja bounce
+      btn.classList.add('bounce'); setTimeout(() => btn.classList.remove('bounce'), 300);
+      // Wybuch konfetti przy poprawnej odpowiedzi
+      if (isCorrect && window.confetti) confetti({ particleCount: 50, spread: 60, origin: { x: 0.5, y: 0.4 } });
+      btn.innerHTML += isCorrect? '<span class="icon">✔</span>' : '<span class="icon">✖</span>';
+      if (qIdx < questions.length - 1) setTimeout(() => renderQuestion(qIdx + 1), 800);
+    }
+
+    function renderCheckButton() {
+      const app = document.getElementById('app');
+      const btn = document.createElement('button'); btn.textContent = 'Sprawdź wynik'; btn.className = 'check-button'; btn.onclick = () => fadeOut(showResult);
+      app.appendChild(btn);
+    }
+
+    function showResult() {
+      const app = document.getElementById('app');
+      const score = userAnswers.filter(Boolean).length;
+      let msg = '';
+      if (score <= 3) msg = 'Słabo :('; else if (score <= 6) msg = 'Nie najgorzej'; else if (score <= 8) msg = 'Dobrze'; else msg = 'Świetnie';
+      app.innerHTML = `<h2>Twój wynik: ${score}/10</h2><p>${msg}</p>`;
+      if (score >= 9 && window.confetti) confetti();
+      const retryBtn = document.createElement('button'); retryBtn.textContent = 'Spróbuj ponownie'; retryBtn.className = 'retry-button'; retryBtn.onclick = () => fadeOut(showWelcome);
+      app.appendChild(retryBtn);
+    }
+
+    window.onload = showWelcome;
+  </script>
+</body>
+</html>
