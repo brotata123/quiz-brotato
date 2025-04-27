@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://brotata123.github.io/quiz-brotato/sitemap.xml
